@@ -2,14 +2,20 @@ use itertools::{izip, Itertools};
 use std::{
     array::IntoIter as ArrIter,
     convert::TryFrom,
-    error::Error,
     fmt::{Display, Write},
     fs::File,
-    io::{self, BufRead, BufReader},
+    io::{BufRead, BufReader},
     iter::{self, Zip},
     ops::Deref,
+    path::Path,
     str::FromStr,
 };
+
+mod error;
+mod macros;
+pub mod scoring;
+
+pub use error::{LoadError, LoadResult, ParseError};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Lang {
@@ -24,41 +30,17 @@ impl Lang {
             Self::DE => "de_words.txt",
         }
     }
-}
 
-#[derive(Copy, Clone, Debug)]
-pub struct ParseError;
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ParseError")
+    pub const fn sollist(&self) -> &'static str {
+        match self {
+            Self::EN => "en_sols.txt",
+            Self::DE => "de_sols.txt",
+        }
     }
 }
-
-impl Error for ParseError {}
-
-#[derive(Debug)]
-pub enum LoadError {
-    ParseError,
-    IoError(io::Error),
-}
-
-impl From<ParseError> for LoadError {
-    fn from(_: ParseError) -> Self {
-        Self::ParseError
-    }
-}
-
-impl From<io::Error> for LoadError {
-    fn from(err: io::Error) -> Self {
-        Self::IoError(err)
-    }
-}
-
-pub type LoadResult<T> = Result<T, LoadError>;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Word([Letter; 5]);
+pub struct Word(pub [Letter; 5]);
 
 impl Deref for Word {
     type Target = [Letter; 5];
@@ -283,8 +265,8 @@ impl WMask {
     }
 }
 
-pub fn load_wordlist(lang: Lang) -> LoadResult<Vec<Word>> {
-    BufReader::new(File::open(lang.wordlist())?)
+pub fn load_wordlist<P: AsRef<Path>>(path: P) -> LoadResult<Vec<Word>> {
+    BufReader::new(File::open(path)?)
         .lines()
         .map(|line| Ok(line?.parse()?))
         .collect()
